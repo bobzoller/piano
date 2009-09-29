@@ -16,15 +16,20 @@ puts "Downloading reports for #{date}"
 
 agent = WWW::Mechanize.new 
 agent.user_agent_alias = 'Mac Safari'
-page = agent.get("https://itts.apple.com/cgi-bin/WebObjects/Piano.woa/")
+agent.follow_meta_refresh = true
+
+page = agent.get("https://itunesconnect.apple.com/WebObjects/iTunesConnect.woa")
 login_form = page.form_with(:name => "appleConnectForm")
-login_form.field_with(:name => "theAccountPW").value = itunes_connect_config["password"]
 login_form.field_with(:name => "theAccountName").value = itunes_connect_config["login"]
-itts = agent.submit(login_form)
+login_form.field_with(:name => "theAccountPW").value = itunes_connect_config["password"]
+lobby = agent.submit(login_form)
+
+link = lobby.link_with(:text => "Sales/Trend Reports")
+itts = agent.get(link.href)
 
 report_form = itts.form_with(:name => "frmVendorPage")
-report_form.field_with(:name => "9.7").value = "Summary"
-report_form.field_with(:name => "9.9").value = "Daily"
+report_form.field_with(:name => "11.7").value = "Summary"
+report_form.field_with(:name => "11.9").value = "Daily"
 report_form.field_with(:name => "hiddenDayOrWeekSelection").value = date.strftime("%m/%d/%Y")
 report_form.field_with(:name => "hiddenSubmitTypeName").value = "Preview"
 report_page = agent.submit(report_form)
@@ -38,14 +43,17 @@ rows = (report_table/"tr")
   report = nil
   country = nil
   product = nil
-  product = Product.find_or_create_by_vendor_identifier(cols[16].innerHTML)
-  country = Country.find_or_create_by_country_code(cols[10].innerHTML)
 
-  report = DailyReport.create( :product_type => cols[4].innerHTML,
-                      :units => cols[5].innerHTML,
-                      :royalty_price => cols[6].innerHTML,
-                      :customer_price => cols[8].innerHTML,
-                      :currency => cols[9].innerHTML,
+  next unless cols[16] && cols[10]
+
+  product = Product.find_or_create_by_vendor_identifier(cols[16].content)
+  country = Country.find_or_create_by_country_code(cols[10].content)
+
+  report = DailyReport.create( :product_type => cols[4].content,
+                      :units => cols[5].content,
+                      :royalty_price => cols[6].content,
+                      :customer_price => cols[8].content,
+                      :currency => cols[9].content,
                       :date_of => date,
                       :product => product,
                       :country => country )
